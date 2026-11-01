@@ -32,6 +32,13 @@ app.post("/add-new-studio", async (req, res) => {
   res.send(result)
 });
 
+// studios api 
+
+app.get("/studios", async(req, res)=>{
+    const data = await newStudioCollection.find().toArray()
+    res.send(data)
+})
+
 app.get("/", (req, res) => {
   res.send({ message: "Server is working Fine!!" });
 });
