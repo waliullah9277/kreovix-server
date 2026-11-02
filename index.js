@@ -116,6 +116,13 @@ app.post("/booking", async (req, res) => {
     }
 });
 
+
+app.get("/my-bookings/:email", async(req, res)=>{
+  const {email} = req.params
+  const result = await studioBookingCollection.find({userEmail: email}).toArray()
+  res.send(result)
+})
+
 app.get("/", (req, res) => {
   res.send({ message: "Server is working Fine!!" });
 });
