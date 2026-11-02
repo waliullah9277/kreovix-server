@@ -26,6 +26,14 @@ const mongoClient = await connectToMongoDB();
 const db = mongoClient.db("kreovix");
 const newStudioCollection = db.collection("new-studio");
 const studioBookingCollection = db.collection("studio-booking");
+const wishlistCollection = db.collection("wishlists");
+
+wishlistCollection
+  .createIndex(
+    { userId: 1, studioId: 1 },
+    { unique: true }
+  )
+  .catch(console.error);
 
 
 const JWKS = createRemoteJWKSet(
@@ -87,7 +95,7 @@ app.get("/studio-featured", async (req, res) => {
 });
 
 // studios details api
-app.get("/studios/:id", verifyToken, async (req, res) => {
+app.get("/studios/:id", async (req, res) => {
   const { id } = req.params;
   const result = await newStudioCollection.findOne({ _id: new ObjectId(id) });
   res.send(result);
@@ -111,7 +119,7 @@ app.get("/my-listings", verifyToken, async (req, res) => {
 });
 
 // my listing update api
-app.patch("/my-listings/:id", async (req, res) => {
+app.patch("/my-listings/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const updatedData = req.body;
   const result = await newStudioCollection.updateOne(
@@ -190,6 +198,187 @@ app.patch("/bookings/:id/cancel", verifyToken, async (req, res) => {
 
   res.send(result);
 });
+
+
+
+const isValidStudioId = (id) =>
+  typeof id === "string" && /^[a-fA-F0-9]{24}$/.test(id);
+
+// 1. Check if a studio is saved
+app.get("/wishlist/check/:studioId", verifyToken, async (req, res) => {
+  try {
+    const { studioId } = req.params;
+    const userId = req.user?.sub;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: "Unauthorized!",
+      });
+    }
+
+    if (!isValidStudioId(studioId)) {
+      return res.status(400).json({
+        message: "Invalid studio ID!",
+      });
+    }
+
+    const savedStudio = await wishlistCollection.findOne({
+      userId,
+      studioId: studioId.toLowerCase(),
+    });
+
+    return res.status(200).json({
+      saved: !!savedStudio,
+    });
+  } catch (error) {
+    console.error("Wishlist Check Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to check wishlist!",
+    });
+  }
+});
+
+// 2. Save a studio
+app.post("/wishlist", verifyToken, async (req, res) => {
+  try {
+    const { studioId } = req.body;
+    const userId = req.user?.sub;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: "Unauthorized!",
+      });
+    }
+
+    if (!isValidStudioId(studioId)) {
+      return res.status(400).json({
+        message: "Invalid studio ID!",
+      });
+    }
+
+    const normalizedId = studioId.toLowerCase();
+
+    // Check studio exists
+    const studio = await newStudioCollection.findOne({
+      _id: new ObjectId(normalizedId),
+    });
+
+    if (!studio) {
+      return res.status(404).json({
+        message: "Studio not found!",
+      });
+    }
+
+    // Avoid duplicate entries
+    await wishlistCollection.updateOne(
+      {
+        userId,
+        studioId: normalizedId,
+      },
+      {
+        $setOnInsert: {
+          userId,
+          studioId: normalizedId,
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+
+    return res.status(200).json({
+      message: "Studio saved successfully!",
+      saved: true,
+    });
+  } catch (error) {
+    console.error("Save Studio Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to save studio!",
+    });
+  }
+});
+
+// 3. Remove a saved studio
+app.delete("/wishlist/:studioId", verifyToken, async (req, res) => {
+  try {
+    const { studioId } = req.params;
+    const userId = req.user?.sub;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: "Unauthorized!",
+      });
+    }
+
+    if (!isValidStudioId(studioId)) {
+      return res.status(400).json({
+        message: "Invalid studio ID!",
+      });
+    }
+
+    await wishlistCollection.deleteOne({
+      userId,
+      studioId: studioId.toLowerCase(),
+    });
+
+    return res.status(200).json({
+      message: "Studio removed from wishlist!",
+      saved: false,
+    });
+  } catch (error) {
+    console.error("Remove Studio Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to remove studio!",
+    });
+  }
+});
+
+
+app.get("/wishlist", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+
+    const saved = await wishlistCollection
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const studioIds = saved
+      .filter((item) =>
+        /^[a-fA-F0-9]{24}$/.test(item.studioId)
+      )
+      .map((item) => new ObjectId(item.studioId));
+
+    const studios = await newStudioCollection
+      .find({
+        _id: { $in: studioIds },
+      })
+      .toArray();
+
+    const studioMap = new Map(
+      studios.map((studio) => [
+        studio._id.toString(),
+        studio,
+      ])
+    );
+
+    const orderedStudios = saved
+      .map((item) => studioMap.get(item.studioId))
+      .filter(Boolean);
+
+    return res.status(200).json(orderedStudios);
+  } catch (error) {
+    console.error("Wishlist Error:", error);
+
+    return res.status(500).json({
+      message: "Failed to load wishlist!",
+    });
+  }
+});
+
+
 
 app.get("/", (req, res) => {
   res.send({ message: "Server is working Fine!!" });
