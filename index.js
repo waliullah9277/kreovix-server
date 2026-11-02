@@ -39,6 +39,12 @@ app.get("/studios", async(req, res)=>{
     res.send(data)
 })
 
+// show studio-featured
+app.get("/studio-featured", async(req, res)=>{
+    const data = await newStudioCollection.find().limit(6).toArray()
+    res.send(data)
+})
+
 // studios details api
 app.get("/studios/:id", async(req, res)=>{
   const {id} = req.params
