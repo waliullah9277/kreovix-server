@@ -123,6 +123,27 @@ app.get("/my-bookings/:email", async(req, res)=>{
   res.send(result)
 })
 
+// cancel booking api
+app.patch("/bookings/:id/cancel", async (req, res) => {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid ID" });
+    }
+
+    const result = await studioBookingCollection.updateOne(
+        {
+            _id: new ObjectId(id),
+            status: "pending"
+        },
+        {
+            $set: { status: "cancelled" }
+        }
+    );
+
+    res.send(result);
+});
+
 app.get("/", (req, res) => {
   res.send({ message: "Server is working Fine!!" });
 });
