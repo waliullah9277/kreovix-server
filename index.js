@@ -62,6 +62,24 @@ app.get("/my-listings", async (req, res) => {
   }
 });
 
+// my listing update api
+app.patch("/my-listings/:id", async(req, res)=>{
+  const {id} = req.params
+  const updatedData = req.body
+  const result = await newStudioCollection.updateOne(
+    {_id: new ObjectId(id)},
+    {$set: updatedData}
+  )
+  res.json(result)
+})
+
+// delete my-listings api
+app.delete("/my-listings/:id", async(req, res)=>{
+  const {id} = req.params
+  const result = await newStudioCollection.deleteOne({_id: new ObjectId(id)})
+  res.json(result)
+})
+
 app.get("/", (req, res) => {
   res.send({ message: "Server is working Fine!!" });
 });
