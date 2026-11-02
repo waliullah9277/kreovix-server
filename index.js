@@ -45,6 +45,23 @@ app.get("/studios/:id", async(req, res)=>{
   res.send(result)
 })
 
+// my-listings api
+app.get("/my-listings", async (req, res) => {
+  try {
+    const email = req.query.email;
+
+    const data = await newStudioCollection
+      .find({ ownerEmail: email })
+      .toArray();
+
+    res.send(data);
+  } catch (error) {
+    res.status(500).send({
+      message: "Failed to fetch listings",
+    });
+  }
+});
+
 app.get("/", (req, res) => {
   res.send({ message: "Server is working Fine!!" });
 });
