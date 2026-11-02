@@ -24,6 +24,7 @@ export async function connectToMongoDB() {
 const mongoClient = await connectToMongoDB();
 const db = mongoClient.db("kreovix");
 const newStudioCollection = db.collection("new-studio");
+const studioBookingCollection = db.collection("studio-booking")
 
 // add new studio api
 app.post("/add-new-studio", async (req, res) => {
@@ -79,6 +80,41 @@ app.delete("/my-listings/:id", async(req, res)=>{
   const result = await newStudioCollection.deleteOne({_id: new ObjectId(id)})
   res.json(result)
 })
+
+// Studio Booking API
+app.post("/booking", async (req, res) => {
+    try {
+        const data = req.body;
+
+        // Check if studio is already booked at this time
+        const existingBooking = await studioBookingCollection.findOne({
+            studioId: data.studioId,
+            bookingDate: data.bookingDate,
+            startTime: { $lt: data.endTime },
+            endTime: { $gt: data.startTime },
+            status: { $in: ["pending", "confirmed"] },
+        });
+
+        if (existingBooking) {
+            return res.status(409).send({
+                message: "This studio is already booked at this time!",
+            });
+        }
+
+        // Save booking
+        const result = await studioBookingCollection.insertOne({
+            ...data,
+            status: "pending",
+        });
+
+        res.send(result);
+
+    } catch (error) {
+        res.status(500).send({
+            message: "Booking failed!",
+        });
+    }
+});
 
 app.get("/", (req, res) => {
   res.send({ message: "Server is working Fine!!" });
